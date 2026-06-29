@@ -1,0 +1,166 @@
+{
+  "name": "clean dataset",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "messy to clean",
+        "formDescription": "please upload the messy dataset",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "upload excel file",
+              "fieldType": "file"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "61012c1f-b18f-4c7d-8504-18c8f7ce23d8",
+      "name": "On form submission",
+      "webhookId": "252fcd7a-5700-41b5-b3b0-e0f403db366f"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "upload_excel_file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c9ff56ce-0bc5-41e7-96dc-b5db80cdaeca",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputItems = $input.all();\n\nlet totalRowsImported = inputItems.length;\nlet emptyRowsRemoved = 0;\nlet invalidEmailsRemoved = 0;\nlet invalidPhonesRemoved = 0;\nlet duplicateRowsRemoved = 0;\n\nconst seenEmails = {};\nconst seenPhones = {};\nconst cleanedData = [];\n\nfunction cleanText(value) {\n  if (value === null || value === undefined) return \"\";\n  return String(value).trim().replace(/\\s+/g, \" \");\n}\n\nfunction properCase(value) {\n  value = cleanText(value).toLowerCase();\n  return value.replace(/\\b\\w/g, function(char) {\n    return char.toUpperCase();\n  });\n}\n\nfunction isValidEmail(email) {\n  email = cleanText(email).toLowerCase();\n  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n  return emailRegex.test(email);\n}\n\nfunction cleanPhone(phone) {\n  return cleanText(phone).replace(/\\D/g, \"\");\n}\n\nfunction isValidPhone(phone) {\n  phone = cleanPhone(phone);\n  return /^01\\d{9}$/.test(phone);\n}\n\nfunction standardizeDate(value) {\n  value = cleanText(value);\n  if (!value) return \"\";\n\n  let date;\n\n  if (/^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}$/.test(value)) {\n    const parts = value.split(/[-/]/);\n    date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));\n  } else if (/^\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}$/.test(value)) {\n    const parts = value.split(/[-/]/);\n    date = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));\n  } else {\n    date = new Date(value);\n  }\n\n  if (isNaN(date.getTime())) return \"\";\n\n  const year = date.getFullYear();\n  const month = String(date.getMonth() + 1).padStart(2, \"0\");\n  const day = String(date.getDate()).padStart(2, \"0\");\n\n  return year + \"-\" + month + \"-\" + day;\n}\n\nfor (const item of inputItems) {\n  const row = item.json;\n\n  let fullName = cleanText(row[\"Full Name\"]);\n  let email = cleanText(row[\"Email\"]).toLowerCase();\n  let phone = cleanPhone(row[\"Phone\"]);\n  let city = cleanText(row[\"City\"]);\n  let registrationDate = standardizeDate(row[\"Registration Date\"]);\n\n  if (!fullName || !email || !phone || !city || !registrationDate) {\n    emptyRowsRemoved++;\n    continue;\n  }\n\n  if (!isValidEmail(email)) {\n    invalidEmailsRemoved++;\n    continue;\n  }\n\n  if (!isValidPhone(phone)) {\n    invalidPhonesRemoved++;\n    continue;\n  }\n\n  if (seenEmails[email] || seenPhones[phone]) {\n    duplicateRowsRemoved++;\n    continue;\n  }\n\n  seenEmails[email] = true;\n  seenPhones[phone] = true;\n\n  cleanedData.push({\n    json: {\n      \"Customer ID\": \"CUST-\" + String(cleanedData.length + 1).padStart(4, \"0\"),\n      \"Full Name\": properCase(fullName),\n      \"Email\": email,\n      \"Phone\": phone,\n      \"City\": properCase(city),\n      \"Registration Date\": registrationDate\n    }\n  });\n}\n\nconst finalRowCount = cleanedData.length;\n\ncleanedData.push({\n  json: {\n    \"Customer ID\": \"SUMMARY\",\n    \"Full Name\": \"Total Rows Imported: \" + totalRowsImported,\n    \"Email\": \"Rows Removed Empty/Invalid: \" + emptyRowsRemoved,\n    \"Phone\": \"Duplicate Rows Removed: \" + duplicateRowsRemoved,\n    \"City\": \"Invalid Emails Removed: \" + invalidEmailsRemoved,\n    \"Registration Date\": \"Invalid Phones Removed: \" + invalidPhonesRemoved + \" | Final Row Count: \" + finalRowCount\n  }\n});\n\nreturn cleanedData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "fe532e84-9207-4843-b144-277bcef90012",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "clean_customer.xlsx"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        0
+      ],
+      "id": "c22df426-6bf3-4c20-9e2e-95e98c4cf946",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "sendTo": "romith71@gmail.com, asif.fil003@gmail.com",
+        "subject": "dataset ready",
+        "message": "your clean dataset is served tada!!!!!  ",
+        "options": {
+          "appendAttribution": false,
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "96ee8fb1-3d64-485c-a487-2486db478dd3",
+      "name": "Send a message",
+      "webhookId": "eed384f5-f198-432e-91c5-5e6dc04fb5eb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8RkW6MiaVU26eZwz",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "babfae3b-50b9-42a2-9147-ba875305c167",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9ec572a449d64e3ce2c2b4bec049bdf80459cfc6f73894ceafcd8921f527a1e5"
+  },
+  "nodeGroups": [],
+  "id": "JKY5FVgZilzDpisg",
+  "tags": []
+}
